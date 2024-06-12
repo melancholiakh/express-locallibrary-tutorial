@@ -22,8 +22,16 @@ exports.index = asyncHandler(async (req, res, next) => {
     Genre.countDocuments({}).exec(),
   ]);
 
-  res.render("index", {
-    title: "Local Library Home",
+  // res.render("index", {
+  //   title: "Local Library Home",
+  //   book_count: numBooks,
+  //   book_instance_count: numBookInstances,
+  //   book_instance_available_count: numAvailableBookInstances,
+  //   author_count: numAuthors,
+  //   genre_count: numGenres,
+  // });
+
+  res.json({
     book_count: numBooks,
     book_instance_count: numBookInstances,
     book_instance_available_count: numAvailableBookInstances,
@@ -40,7 +48,8 @@ exports.book_list = asyncHandler(async (req, res, next) => {
     .populate("author")
     .exec();
 
-  res.render("book_list", { title: "Book List", book_list: allBooks });
+  //res.render("book_list", { title: "Book List", book_list: allBooks });
+  res.json({ book_list: allBooks });
 });
 
 
@@ -59,28 +68,48 @@ exports.book_detail = asyncHandler(async (req, res, next) => {
     return next(err);
   }
 
-  res.render("book_detail", {
-    title: book.title,
-    book: book,
-    book_instances: bookInstances,
-  });
+  // res.render("book_detail", {
+  //   title: book.title,
+  //   book: book,
+  //   book_instances: bookInstances,
+  // });
+
+  res.json({ book: book, book_instances: bookInstances })
 });
 
 
 
 // Display book create form on GET.
 exports.book_create_get = asyncHandler(async (req, res, next) => {
-  // Get all authors and genres, which we can use for adding to our book.
-  const [allAuthors, allGenres] = await Promise.all([
-    Author.find().sort({ family_name: 1 }).exec(),
-    Genre.find().sort({ name: 1 }).exec(),
-  ]);
+  try {
+    const [allAuthors, allGenres] = await Promise.all([
+      Author.find().sort({ family_name: 1 }).exec(),
+      Genre.find().sort({ name: 1 }).exec(),
+    ]);
+  
+    // res.render("book_form", {
+    //   title: "Create Book",
+    //   authors: allAuthors,
+    //   genres: allGenres,
+    // });
+  
+    res.json({ authors: allAuthors, genres: allGenres });
+  } catch (error) {
+    console.error("Error:", error);
+  }// Get all authors and genres, which we can use for adding to our book.
+  // const [allAuthors, allGenres] = await Promise.all([
+  //   Author.find().sort({ family_name: 1 }).exec(),
+  //   Genre.find().sort({ name: 1 }).exec(),
+  // ]);
 
-  res.render("book_form", {
-    title: "Create Book",
-    authors: allAuthors,
-    genres: allGenres,
-  });
+  // // res.render("book_form", {
+  // //   title: "Create Book",
+  // //   authors: allAuthors,
+  // //   genres: allGenres,
+  // // });
+
+  // res.json({ authors: allAuthors, genres: allGenres });
+
 });
 
 // Handle book create on POST.
@@ -139,32 +168,55 @@ exports.book_create_post = [
           genre.checked = "true";
         }
       }
-      res.render("book_form", {
-        title: "Create Book",
-        authors: allAuthors,
-        genres: allGenres,
-        book: book,
-        errors: errors.array(),
-      });
+      // res.render("book_form", {
+      //   title: "Create Book",
+      //   authors: allAuthors,
+      //   genres: allGenres,
+      //   book: book,
+      //   errors: errors.array(),
+      // });
+      res.json({ book: book, errors: errors.array()});
     } else {
       // Data from form is valid. Save book.
       await book.save();
-      res.redirect(book.url);
+      // res.redirect(book.url);
+      res.json({ book: book });
     }
   }),
 ];
 
-
-// Display book delete form on GET.
-exports.book_delete_get = asyncHandler(async (req, res, next) => {
-  res.send("NOT IMPLEMENTED: Book delete GET");
-});
-
-
 // Handle book delete on POST.
 exports.book_delete_post = asyncHandler(async (req, res, next) => {
-  res.send("NOT IMPLEMENTED: Book delete POST");
+  // Assume the post has valid id (ie no validation/sanitization).
+
+  const [book, bookInstances] = await Promise.all([
+    Book.findById(req.params.id).populate("author").populate("genre").exec(),
+    BookInstance.find({ book: req.params.id }).exec(),
+  ]);
+
+  // if (book === null) {
+  //   // No results.
+  //   res.redirect("/catalog/books");
+  // }
+
+  if (bookInstances.length > 0) {
+    // Book has book_instances. Render in same way as for GET route.
+    // res.render("book_delete", {
+    //   title: "Delete Book",
+    //   book: book,
+    //   book_instances: bookInstances,
+    // });
+
+    res.json({ book: book, book_instances: bookInstances });
+    return;
+  } else {
+    // Book has no BookInstance objects. Delete object and redirect to the list of books.
+    await Book.findByIdAndDelete(req.body.id);
+    // res.redirect("/catalog/books");
+    res.json({ book: book });
+  }
 });
+
 
 
 // Display book update form on GET.
@@ -188,12 +240,14 @@ exports.book_update_get = asyncHandler(async (req, res, next) => {
     if (book.genre.includes(genre._id)) genre.checked = "true";
   });
 
-  res.render("book_form", {
-    title: "Update Book",
-    authors: allAuthors,
-    genres: allGenres,
-    book: book,
-  });
+  // res.render("book_form", {
+  //   title: "Update Book",
+  //   authors: allAuthors,
+  //   genres: allGenres,
+  //   book: book,
+  // });
+
+  res.json({ authors: allAuthors, genres: allGenres, book: book });
 });
 
 // Handle book update on POST.
@@ -253,19 +307,23 @@ exports.book_update_post = [
           genre.checked = "true";
         }
       }
-      res.render("book_form", {
-        title: "Update Book",
-        authors: allAuthors,
-        genres: allGenres,
-        book: book,
-        errors: errors.array(),
-      });
+      // res.render("book_form", {
+      //   title: "Update Book",
+      //   authors: allAuthors,
+      //   genres: allGenres,
+      //   book: book,
+      //   errors: errors.array(),
+      // });
+
+      res.json({ authors: allAuthors, genres: allGenres, book: book, errors: errors.array() });
       return;
     } else {
       // Data from form is valid. Update the record.
       const updatedBook = await Book.findByIdAndUpdate(req.params.id, book, {});
       // Redirect to book detail page.
-      res.redirect(updatedBook.url);
+      // res.redirect(updatedBook.url);
+
+      res.json({ book: updatedBook });
     }
   }),
 ];
@@ -279,14 +337,17 @@ exports.book_delete_get = asyncHandler(async (req, res) => {
 
   if (book === null) {
     // No results.
-    res.redirect("/catalog/books");
+    // res.redirect("/catalog/books");
+    return;
   }
 
-  res.render("book_delete", {
-    title: "Delete Book",
-    book: book,
-    book_instances: bookInstances,
-  });
+  // res.render("book_delete", {
+  //   title: "Delete Book",
+  //   book: book,
+  //   book_instances: bookInstances,
+  // });
+
+  res.json({ book: book, book_instances: bookInstances });
 });
 
 // Handle book delete on POST.
@@ -298,23 +359,27 @@ exports.book_delete_post = asyncHandler(async (req, res) => {
     BookInstance.find({ book: req.params.id }).exec(),
   ]);
 
-  if (book === null) {
-    // No results.
-    res.redirect("/catalog/books");
-  }
+  // if (book === null) {
+  //   // No results.
+  //   res.redirect("/catalog/books");
+  // }
 
   if (bookInstances.length > 0) {
     // Book has book_instances. Render in same way as for GET route.
-    res.render("book_delete", {
-      title: "Delete Book",
-      book: book,
-      book_instances: bookInstances,
-    });
+    // res.render("book_delete", {
+    //   title: "Delete Book",
+    //   book: book,
+    //   book_instances: bookInstances,
+    // });
+
+    res.json({ book: book, book_instances: bookInstances });
     return;
   } else {
     // Book has no BookInstance objects. Delete object and redirect to the list of books.
     await Book.findByIdAndDelete(req.body.id);
-    res.redirect("/catalog/books");
+    // res.redirect("/catalog/books");
+
+    res.json({ book: book });
   }
 });
 
@@ -339,12 +404,14 @@ exports.book_update_get = asyncHandler(async (req, res) => {
     if (book.genre.includes(genre._id)) genre.checked = "true";
   });
 
-  res.render("book_form", {
-    title: "Update Book",
-    authors: allAuthors,
-    genres: allGenres,
-    book: book,
-  });
+  // res.render("book_form", {
+  //   title: "Update Book",
+  //   authors: allAuthors,
+  //   genres: allGenres,
+  //   book: book,
+  // });
+
+  res.json({ authors: allAuthors, genres: allGenres, book: book });
 });
 
 // Handle book update on POST.
@@ -404,19 +471,21 @@ exports.book_update_post = [
           genre.checked = "true";
         }
       }
-      res.render("book_form", {
-        title: "Update Book",
-        authors: allAuthors,
-        genres: allGenres,
-        book: book,
-        errors: errors.array(),
-      });
+      // res.render("book_form", {
+      //   title: "Update Book",
+      //   authors: allAuthors,
+      //   genres: allGenres,
+      //   book: book,
+      //   errors: errors.array(),
+      // });
       return;
     } else {
       // Data from form is valid. Update the record.
       const thebook = await Book.findByIdAndUpdate(req.params.id, book, {});
       // Redirect to book detail page.
-      res.redirect(thebook.url);
+      // res.redirect(thebook.url);
+
+      res.json({ book: thebook });
     }
   }),
 ];
